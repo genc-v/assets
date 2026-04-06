@@ -1,4 +1,4 @@
-name: CI/CD - CMS User Management
+name: CI/CD - CMS Assets Management
 
 on:
   push:
