@@ -39,7 +39,7 @@ export class StorageService implements OnModuleInit {
       await this.minioClient.setBucketPolicy(bucket, JSON.stringify(policy));
       console.log('MinIO connection initialized');
     } catch (error) {
-      console.error('MinIO Initialization Error:', error.message);
+      console.error('MinIO Initialization Error:', (error as Error).message);
     }
   }
 
@@ -50,15 +50,14 @@ export class StorageService implements OnModuleInit {
       .replaceAll(' ', '_');
   }
 
-  async uploadFile(
-    entryId: string,
+  async uploadUserFile(
     userId: string,
     buffer: Buffer,
     filename: string,
     mimetype?: string,
   ) {
     const safeFilename = this.sanitizeFilename(filename);
-    const key = `${userId}/${entryId}/${Date.now()}-${safeFilename}`;
+    const key = `${userId}/${Date.now()}-${safeFilename}`;
     await this.minioClient.putObject(
       process.env.MINIO_BUCKET || 'uploads',
       key,
@@ -73,6 +72,74 @@ export class StorageService implements OnModuleInit {
     return this.minioClient.getObject(
       process.env.MINIO_BUCKET || 'uploads',
       key,
+    );
+  }
+
+  async uploadOrgFile(
+    orgId: string,
+    entryId: string,
+    buffer: Buffer,
+    filename: string,
+    mimetype?: string,
+  ) {
+    const safeFilename = this.sanitizeFilename(filename);
+    const key = `orgs/${orgId}/${entryId}/${Date.now()}-${safeFilename}`;
+    await this.minioClient.putObject(
+      process.env.MINIO_BUCKET || 'uploads',
+      key,
+      buffer,
+      buffer.length,
+      { 'Content-Type': mimetype || 'application/octet-stream' },
+    );
+    return { key };
+  }
+
+  async uploadProfileAsset(
+    userId: string,
+    buffer: Buffer,
+    filename: string,
+    mimetype?: string,
+  ) {
+    const safeFilename = this.sanitizeFilename(filename);
+    const key = `profiles/${userId}/${Date.now()}-${safeFilename}`;
+    await this.minioClient.putObject(
+      process.env.MINIO_BUCKET || 'uploads',
+      key,
+      buffer,
+      buffer.length,
+      { 'Content-Type': mimetype || 'application/octet-stream' },
+    );
+    return { key };
+  }
+
+  async deleteAsset(key: string): Promise<void> {
+    await this.minioClient.removeObject(
+      process.env.MINIO_BUCKET || 'uploads',
+      key,
+    );
+  }
+
+  async getAssetInfo(key: string) {
+    const bucket = process.env.MINIO_BUCKET || 'uploads';
+    const [stat, tags] = await Promise.all([
+      this.minioClient.statObject(bucket, key),
+      this.minioClient.getObjectTagging(bucket, key).catch(() => ({})),
+    ]);
+    return {
+      key,
+      size: stat.size,
+      lastModified: stat.lastModified,
+      etag: stat.etag,
+      contentType: stat.metaData?.['content-type'] as string | undefined,
+      tags,
+    };
+  }
+
+  async setAssetTags(key: string, tags: Record<string, string>): Promise<void> {
+    await this.minioClient.setObjectTagging(
+      process.env.MINIO_BUCKET || 'uploads',
+      key,
+      tags,
     );
   }
 

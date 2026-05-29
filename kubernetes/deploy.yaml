@@ -54,7 +54,7 @@ spec:
             
             # --- Kafka Settings ---
             - name: KAFKA_BROKER
-              value: "kafka:9092"
+              value: "kafka-1768077348-headless:9092"
             - name: KAFKA_TOPIC
               value: "files.uploaded"
             

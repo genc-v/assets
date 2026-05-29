@@ -1,56 +1,113 @@
 import {
-  BadRequestException,
   Controller,
+  Post,
   Get,
+  Patch,
+  Delete,
+  Param,
+  Body,
   Query,
+  UploadedFile,
+  UseInterceptors,
   UseGuards,
-  Req,
+  BadRequestException,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import {
+  ApiTags,
+  ApiBearerAuth,
+  ApiConsumes,
+  ApiBody,
+  ApiQuery,
+  ApiResponse,
+} from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { AssetAccessGuard } from './guards/asset-access.guard';
+import { AssetAccess } from './decorators/asset-access.decorator';
 import { AssetsService } from './assets.service';
-import { ApiTags, ApiBearerAuth, ApiQuery, ApiResponse } from '@nestjs/swagger';
-import { Request } from 'express';
-import { JwtPayload } from '../auth/jwt.strategy';
-import { AssetsResponseDto } from './dto/asset.dto';
+import { UpdateMetadataDto } from './dto/update-metadata.dto';
 
 @ApiTags('assets')
 @ApiBearerAuth()
-@Controller('assets')
-@UseGuards(JwtAuthGuard)
+@Controller('organisations/:orgId/assets')
+@UseGuards(JwtAuthGuard, AssetAccessGuard)
 export class AssetsController {
-  constructor(private readonly assetsService: AssetsService) {}
+  constructor(private readonly assets: AssetsService) {}
+
+  @Post()
+  @AssetAccess('write')
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['entryId', 'file'],
+      properties: {
+        entryId: { type: 'string' },
+        file: { type: 'string', format: 'binary' },
+      },
+    },
+  })
+  @ApiResponse({ status: 201 })
+  @UseInterceptors(FileInterceptor('file'))
+  async upload(
+    @Param('orgId') orgId: string,
+    @Body('entryId') entryId: string | undefined,
+    @UploadedFile() file: Express.Multer.File | undefined,
+  ) {
+    if (!entryId?.trim()) throw new BadRequestException('entryId is required');
+    if (!file?.buffer) throw new BadRequestException('No file uploaded');
+    return this.assets.upload(orgId, entryId.trim(), file);
+  }
 
   @Get()
-  @ApiQuery({ name: 'page', required: false, type: Number })
-  @ApiQuery({ name: 'pageSize', required: false, type: Number })
-  @ApiResponse({
-    status: 200,
-    description: 'List of assets for the current user',
-    type: AssetsResponseDto,
+  @AssetAccess('read')
+  @ApiQuery({
+    name: 'entryId',
+    required: false,
+    description: 'Filter by entry ID',
   })
-  async getAssets(
-    @Query('page') pageRaw: string | undefined,
-    @Query('pageSize') pageSizeRaw: string | undefined,
-    @Req() req: Request & { user: JwtPayload },
+  @ApiResponse({ status: 200 })
+  async list(
+    @Param('orgId') orgId: string,
+    @Query('entryId') entryId?: string,
   ) {
-    const page = pageRaw ? Number(pageRaw) : 1;
-    const pageSize = pageSizeRaw ? Number(pageSizeRaw) : 20;
+    return this.assets.listAssets(orgId, entryId);
+  }
 
-    if (!Number.isFinite(page) || page < 1) {
-      throw new BadRequestException('page must be >= 1');
+  @Get('info')
+  @AssetAccess('read')
+  @ApiQuery({
+    name: 'key',
+    required: true,
+    description: 'Full asset key (e.g. orgs/orgId/entryId/file.jpg)',
+  })
+  @ApiResponse({ status: 200 })
+  async getInfo(@Query('key') key: string) {
+    if (!key) throw new BadRequestException('key query param is required');
+    return this.assets.getAssetInfo(key);
+  }
+
+  @Patch('metadata')
+  @AssetAccess('write')
+  @ApiQuery({ name: 'key', required: true, description: 'Full asset key' })
+  @ApiResponse({ status: 200 })
+  async updateMetadata(
+    @Query('key') key: string,
+    @Body() dto: UpdateMetadataDto,
+  ) {
+    if (!key) throw new BadRequestException('key query param is required');
+    if (!dto?.tags || typeof dto.tags !== 'object') {
+      throw new BadRequestException('tags must be a key-value object');
     }
+    return this.assets.updateMetadata(key, dto.tags);
+  }
 
-    if (!Number.isFinite(pageSize) || pageSize < 1 || pageSize > 100) {
-      throw new BadRequestException('pageSize must be between 1 and 100');
-    }
-
-    const userId = req.user?.sub;
-    if (!userId) {
-      // Should handle case where sub is missing, though Guard usually guarantees user presence.
-      // But sub might be optional in JwtPayload definition?
-      throw new BadRequestException('User ID not found in token');
-    }
-
-    return this.assetsService.getAssets(page, pageSize, userId);
+  @Delete()
+  @AssetAccess('delete')
+  @ApiQuery({ name: 'key', required: true, description: 'Full asset key' })
+  @ApiResponse({ status: 200 })
+  async remove(@Query('key') key: string) {
+    if (!key) throw new BadRequestException('key query param is required');
+    return this.assets.deleteAsset(key);
   }
 }

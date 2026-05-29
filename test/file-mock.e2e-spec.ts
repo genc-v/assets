@@ -14,7 +14,6 @@ import { KafkaConsumerService } from './../src/kafka/kafka-consumer.service';
 import { JwtAuthGuard } from './../src/auth/jwt-auth.guard';
 import { Readable } from 'stream';
 
-// Mock Services
 const mockStorageService = {
   onModuleInit: jest.fn(),
   uploadFile: jest
@@ -44,7 +43,6 @@ const mockKafkaConsumerService = {
   onModuleDestroy: jest.fn(),
 };
 
-// Mock Auth Guard
 const mockJwtAuthGuard: CanActivate = {
   canActivate: (context: ExecutionContext) => {
     const req = context.switchToHttp().getRequest<Request & { user: any }>();

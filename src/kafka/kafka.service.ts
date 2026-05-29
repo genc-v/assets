@@ -31,7 +31,7 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
       await this.producer.connect();
       console.log('Kafka Producer connected');
     } catch (error) {
-      console.error('Kafka Connection Error:', error.message);
+      console.error('Kafka Connection Error:', (error as Error).message);
     }
   };
 
@@ -52,7 +52,7 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
         messages: [{ value: JSON.stringify(event) }],
       });
     } catch (error) {
-      console.error('Error sending Kafka message:', error.message);
+      console.error('Error sending Kafka message:', (error as Error).message);
     }
   }
 }

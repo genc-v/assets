@@ -1,37 +1,24 @@
-import {
-  Controller,
-  Get,
-  Req,
-  Res,
-  NotFoundException,
-} from '@nestjs/common';
-import { FileService } from './file.service';
-import express from 'express';
+import { Controller, Get, Req, Res, NotFoundException } from '@nestjs/common';
 import { ApiTags, ApiResponse } from '@nestjs/swagger';
+import express from 'express';
+import { StorageService } from '../storage/storage.service';
 
 @ApiTags('uploads')
 @Controller('uploads')
 export class UploadsController {
-  constructor(private readonly fileService: FileService) {}
+  constructor(private readonly storage: StorageService) {}
 
   @Get('*')
-  @ApiResponse({
-    status: 200,
-    description: 'Public file stream from MinIO',
-    content: {
-      'image/jpeg': { schema: { type: 'string', format: 'binary' } },
-      'image/png': { schema: { type: 'string', format: 'binary' } },
-      'application/octet-stream': {
-        schema: { type: 'string', format: 'binary' },
-      },
-    },
-  })
-  async getPublicFile(@Req() req: express.Request, @Res() res: express.Response) {
-    const path = req.url.replace('/uploads/', '');
+  @ApiResponse({ status: 200, description: 'Public file stream from MinIO' })
+  async getPublicFile(
+    @Req() req: express.Request,
+    @Res() res: express.Response,
+  ) {
+    const key = req.url.replace('/uploads/', '');
     try {
-      const stream = await this.fileService.getFile(path);
+      const stream = await this.storage.getFileStream(key);
 
-      const ext = path.toLowerCase().split('.').pop();
+      const ext = key.toLowerCase().split('.').pop() ?? '';
       const contentTypeMap: Record<string, string> = {
         jpg: 'image/jpeg',
         jpeg: 'image/jpeg',
@@ -46,19 +33,15 @@ export class UploadsController {
 
       res.setHeader(
         'Content-Type',
-        contentTypeMap[ext || ''] || 'application/octet-stream',
+        contentTypeMap[ext] || 'application/octet-stream',
       );
 
-      stream.on('error', (err) => {
-        console.error('Stream error:', err);
-        if (!res.headersSent) {
-          res.status(404).end('File not found');
-        }
+      stream.on('error', () => {
+        if (!res.headersSent) res.status(404).end('File not found');
       });
 
       stream.pipe(res);
-    } catch (err) {
-      console.error('File fetch error:', err);
+    } catch {
       throw new NotFoundException('File not found');
     }
   }

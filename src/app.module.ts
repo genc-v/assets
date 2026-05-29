@@ -1,16 +1,35 @@
 import { Module } from '@nestjs/common';
+import { CacheModule } from '@nestjs/cache-manager';
+import KeyvRedis from '@keyv/redis';
 import { StorageModule } from './storage/storage.module';
 import { KafkaModule } from './kafka/kafka.module';
-import { FileService } from './file/file.service';
-import { FileController } from './file/file.controller';
-import { UploadsController } from './file/uploads.controller';
 import { AuthModule } from './auth/auth.module';
-import { AssetsController } from './assets/assets.controller';
-import { AssetsService } from './assets/assets.service';
+import { DatabaseModule } from './database/database.module';
+import { OrganisationsModule } from './organisations/organisations.module';
+import { AssetsModule } from './assets/assets.module';
+import { UploadsController } from './file/uploads.controller';
+import { UsersController } from './users/users.controller';
 
 @Module({
-  imports: [AuthModule, StorageModule, KafkaModule],
-  controllers: [FileController, UploadsController, AssetsController],
-  providers: [FileService, AssetsService],
+  imports: [
+    CacheModule.registerAsync({
+      isGlobal: true,
+      useFactory: () => ({
+        stores: [
+          new KeyvRedis(
+            `redis://${process.env.REDIS_HOST || 'localhost'}:${process.env.REDIS_PORT || '6379'}`,
+          ),
+        ],
+        ttl: 5 * 60 * 1000,
+      }),
+    }),
+    AuthModule,
+    DatabaseModule,
+    StorageModule,
+    KafkaModule,
+    OrganisationsModule,
+    AssetsModule,
+  ],
+  controllers: [UploadsController, UsersController],
 })
 export class AppModule {}
