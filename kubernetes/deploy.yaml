@@ -58,6 +58,20 @@ spec:
             - name: KAFKA_TOPIC
               value: "files.uploaded"
             
+            # --- MongoDB (stores org asset metadata) ---
+            - name: MONGODB_URI
+              value: "mongodb://cmsorg:cmsorg_pass@mongodb:27017/cms?authSource=admin"
+
+            # --- Redis (asset list/info cache) ---
+            - name: REDIS_HOST
+              value: "redis"
+            - name: REDIS_PORT
+              value: "6379"
+
+            # --- Organisation Service ---
+            - name: CMSORG_BASE_URL
+              value: "http://cms-organisations"
+
             # --- App Settings ---
             - name: PORT
               value: "3000"

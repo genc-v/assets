@@ -69,8 +69,12 @@ export class AssetsService {
       ? `assets:list:${orgId}:${entryId}`
       : `assets:list:${orgId}`;
 
-    const cached = await this.cache.get(cacheKey);
-    if (cached) return cached;
+    try {
+      const cached = await this.cache.get(cacheKey);
+      if (cached) return cached;
+    } catch (err) {
+      console.error('Cache GET failed:', (err as Error | undefined)?.message);
+    }
 
     const org = await this.orgModel.findOne({ orgId }).lean().exec();
     if (!org) return [];
@@ -91,8 +95,12 @@ export class AssetsService {
 
   async getAssetInfo(key: string) {
     const cacheKey = `assets:info:${key}`;
-    const cached = await this.cache.get(cacheKey);
-    if (cached) return cached;
+    try {
+      const cached = await this.cache.get(cacheKey);
+      if (cached) return cached;
+    } catch (err) {
+      console.error('Cache GET failed:', (err as Error | undefined)?.message);
+    }
 
     const org = await this.orgModel
       .findOne({ 'assets.key': key })
