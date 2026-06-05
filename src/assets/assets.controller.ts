@@ -11,6 +11,8 @@ import {
   UseInterceptors,
   UseGuards,
   BadRequestException,
+  ParseIntPipe,
+  DefaultValuePipe,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
@@ -61,17 +63,19 @@ export class AssetsController {
 
   @Get()
   @AssetAccess('read')
-  @ApiQuery({
-    name: 'entryId',
-    required: false,
-    description: 'Filter by entry ID',
-  })
+  @ApiQuery({ name: 'entryId', required: false, description: 'Filter by entry ID' })
+  @ApiQuery({ name: 'page', required: false, description: 'Page number (1-based)', example: 1 })
+  @ApiQuery({ name: 'limit', required: false, description: 'Items per page (max 100)', example: 20 })
   @ApiResponse({ status: 200 })
   async list(
     @Param('orgId') orgId: string,
     @Query('entryId') entryId?: string,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number = 1,
+    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number = 20,
   ) {
-    return this.assets.listAssets(orgId, entryId);
+    if (page < 1) throw new BadRequestException('page must be >= 1');
+    if (limit < 1 || limit > 100) throw new BadRequestException('limit must be between 1 and 100');
+    return this.assets.listAssets(orgId, entryId, page, limit);
   }
 
   @Get('info')

@@ -64,10 +64,16 @@ export class AssetsService {
     return { entryId, assetId: key, key, url };
   }
 
-  async listAssets(orgId: string, entryId?: string) {
+  async listAssets(
+    orgId: string,
+    entryId?: string,
+    page: number = 1,
+    limit: number = 20,
+  ) {
+    const gen = await this.getListGeneration(orgId, entryId);
     const cacheKey = entryId
-      ? `assets:list:${orgId}:${entryId}`
-      : `assets:list:${orgId}`;
+      ? `assets:list:${orgId}:${entryId}:${page}:${limit}:g${gen}`
+      : `assets:list:${orgId}:${page}:${limit}:g${gen}`;
 
     try {
       const cached = await this.cache.get(cacheKey);
@@ -77,13 +83,18 @@ export class AssetsService {
     }
 
     const org = await this.orgModel.findOne({ orgId }).lean().exec();
-    if (!org) return [];
+    if (!org) return { data: [], total: 0, page, limit, totalPages: 0 };
 
-    const assets = entryId
+    const filtered = entryId
       ? org.assets.filter((a) => a.entryId === entryId)
       : org.assets;
 
-    const result = assets.map((a) => this.serialize(a));
+    const total = filtered.length;
+    const totalPages = Math.ceil(total / limit);
+    const offset = (page - 1) * limit;
+    const data = filtered.slice(offset, offset + limit).map((a) => this.serialize(a));
+
+    const result = { data, total, page, limit, totalPages };
     try {
       await this.cache.set(cacheKey, result, CACHE_TTL);
       console.log('Cache SET ok:', cacheKey);
@@ -163,10 +174,30 @@ export class AssetsService {
     return { deleted: key };
   }
 
+  private async getListGeneration(orgId: string, entryId?: string): Promise<number> {
+    const key = entryId
+      ? `assets:list:gen:${orgId}:${entryId}`
+      : `assets:list:gen:${orgId}`;
+    try {
+      const gen = await this.cache.get<number>(key);
+      return gen ?? 0;
+    } catch {
+      return 0;
+    }
+  }
+
   private async invalidateListCache(orgId: string, entryId: string) {
+    const bumpGen = async (key: string) => {
+      try {
+        const current = await this.cache.get<number>(key) ?? 0;
+        await this.cache.set(key, current + 1, CACHE_TTL * 24);
+      } catch (err) {
+        console.error('Cache gen bump failed:', (err as Error | undefined)?.message);
+      }
+    };
     await Promise.all([
-      this.cache.del(`assets:list:${orgId}`),
-      this.cache.del(`assets:list:${orgId}:${entryId}`),
+      bumpGen(`assets:list:gen:${orgId}`),
+      bumpGen(`assets:list:gen:${orgId}:${entryId}`),
     ]);
   }
 
