@@ -7,7 +7,6 @@ import {
 } from '@nestjs/common';
 import { Request } from 'express';
 
-// Roles permitted to upload files to an organisation (Viewer is read-only)
 const UPLOAD_ROLES = new Set(['Editor', 'Admin']);
 
 @Injectable()
